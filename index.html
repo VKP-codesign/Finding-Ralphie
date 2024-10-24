@@ -59,6 +59,21 @@
             display: none;
             z-index: 100;
         }
+        /* Arrow Styling */
+        #arrow {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 50px;
+            height: 50px;
+            z-index: 200;
+            transition: transform 0.3s ease-in-out;
+        }
+        #arrow img {
+            width: 100%;
+            height: 100%;
+        }
     </style>
 </head>
 <body>
@@ -70,6 +85,11 @@
 
     <!-- Acknowledgment message -->
     <div id="acknowledgment">Congratulations! You've found the circle!</div>
+
+    <!-- Arrow for direction -->
+    <div id="arrow">
+        <img src="https://image.shutterstock.com/image-vector/arrow-pointing-up-260nw-736505353.jpg" alt="Arrow">
+    </div>
 
     <!-- AR Scene (camera view) -->
     <div id="ar-container">
@@ -121,6 +141,9 @@
                 congratsShown = true;
             } else {
                 document.getElementById('status-message').textContent = `Circle is ${Math.floor(currentDistance)} meters away, direction: ${Math.floor(bearing)}°`;
+
+                // Rotate the arrow to point towards the circle
+                document.getElementById('arrow').style.transform = `translateX(-50%) rotate(${bearing}deg)`;
             }
         }
 
@@ -190,12 +213,13 @@
             const λ2 = lon2 * Math.PI / 180;
 
             const y = Math.sin(λ2 - λ1) * Math.cos(φ2);
-            const x = Math.cos(φ1) * Math.sin(φ2) - 
+            const x = Math.cos(φ1) * Math.sin(φ2) -
                       Math.sin(φ1) * Math.cos(φ2) * Math.cos(λ2 - λ1);
-            const θ = Math.atan2(y, x);
 
-            const bearing = (θ * 180 / Math.PI + 360) % 360; // Convert bearing from radians to degrees
-            return bearing; // Bearing in degrees (0° is North, 90° is East, etc.)
+            const θ = Math.atan2(y, x);
+            const bearing = (θ * 180 / Math.PI + 360) % 360; // Convert to degrees and normalize
+
+            return bearing;
         }
     </script>
 </body>
