@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobile-Friendly AR Game</title>
+    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+    <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/master/aframe/build/aframe-ar.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background-color: #f8f8f8;
+        }
+        #ar-container {
+            width: 100%;
+            position: relative;
+            padding-top: 56.25%; /* This creates a 16:9 aspect ratio container */
+            overflow: hidden;
+            border-top: 5px solid #333;
+            border-bottom: 5px solid #333;
+        }
+        a-scene {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover; /* Ensures the entire camera view is shown without cropping */
+        }
+        #game-ui {
+            padding: 20px;
+            text-align: center;
+            background-color: #f8f8f8;
+        }
+        #start-button {
+            background-color: #ffcc00;
+            padding: 10px 20px;
+            font-size: 18px;
+            border: none;
+            cursor: pointer;
+            margin-bottom: 10px;
+        }
+        #status-message {
+            font-size: 18px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Game UI (Button and Status Text above AR scene) -->
+    <div id="game-ui">
+        <button id="start-button" onclick="startGame()">Start Game</button>
+        <p id="status-message">Press Start to begin.</p>
+    </div>
+
+    <!-- AR Scene (camera view) -->
+    <div id="ar-container">
+        <a-scene embedded arjs="sourceType: webcam;">
+            <a-entity id="target-circle" geometry="primitive: sphere" material="color: red" position="0 0 0" scale="5 5 5"></a-entity>
+            <a-entity camera></a-entity>
+        </a-scene>
+    </div>
+
+    <script>
+        let gameStarted = false;
+        let congratsShown = false; // To ensure congrats alert is shown only once
+
+        function startGame() {
+            document.getElementById('start-button').style.display = 'none'; // Hide start button
+            document.getElementById('status-message').textContent = "Checking your location...";
+
+            // Start geolocation check
+            if (navigator.geolocation) {
+                navigator.geolocation.watchPosition(showPosition, showError);
+            } else {
+                alert("Geolocation is not supported by this browser.");
+            }
+        }
+
+        function showPosition(position) {
+            const playerLat = position.coords.latitude;
+            const playerLng = position.coords.longitude;
+
+            // Set the circle to always be 10 meters away from the player
+            const distance = 10; // 10 meters
+
+            // Calculate the coordinates of the circle 10 meters away from the user
+            const circleCoords = getCircleCoords(playerLat, playerLng, distance);
+
+            // Set the position of the target circle in the AR scene
+            document.getElementById('target-circle').setAttribute('position', `${circleCoords.x} 0 ${circleCoords.z}`);
+
+            // Calculate the current distance to the circle
+            const currentDistance = calculateDistance(playerLat, playerLng, circleCoords.lat, circleCoords.lng);
+
+            // Calculate the bearing (angle in degrees) to the circle
+            const bearing = calculateBearing(playerLat, playerLng, circleCoords.lat, circleCoords.lng);
+
+            // Update status message to show distance and direction
+            if (currentDistance < 1 && !congratsShown) {
+                // Show congrats message if player is within 1 meter
+                alert("Congratulations! You've found the circle!");
+                congratsShown = true;
+            } else {
+                document.getElementById('status-message').textContent = `Circle is ${Math.floor(currentDistance)} meters away, direction: ${Math.floor(bearing)}°`;
+            }
+        }
+
+        function showError(error) {
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    alert("User denied the request for Geolocation.");
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    alert("Location information is unavailable.");
+                    break;
+                case error.TIMEOUT:
+                    alert("The request to get user location timed out.");
+                    break;
+                case error.UNKNOWN_ERROR:
+                    alert("An unknown error occurred.");
+                    break;
+            }
+        }
+
+        // Function to calculate coordinates of a point that is 'distance' meters away from the user's location
+        function getCircleCoords(lat, lng, distance) {
+            const earthRadius = 6371e3; // Earth radius in meters
+            const bearing = Math.random() * 2 * Math.PI; // Random direction
+            const angularDistance = distance / earthRadius;
+
+            const latRad = lat * Math.PI / 180;
+            const lngRad = lng * Math.PI / 180;
+
+            const targetLatRad = Math.asin(Math.sin(latRad) * Math.cos(angularDistance) + 
+                Math.cos(latRad) * Math.sin(angularDistance) * Math.cos(bearing));
+
+            const targetLngRad = lngRad + Math.atan2(Math.sin(bearing) * Math.sin(angularDistance) * Math.cos(latRad),
+                Math.cos(angularDistance) - Math.sin(latRad) * Math.sin(targetLatRad));
+
+            const targetLat = targetLatRad * 180 / Math.PI;
+            const targetLng = targetLngRad * 180 / Math.PI;
+
+            // Convert latitude/longitude to approximate x, z coordinates for AR scene (simple flat projection)
+            const x = (targetLng - lng) * (earthRadius * Math.PI / 180); // Simple conversion from longitude to meters
+            const z = (targetLat - lat) * (earthRadius * Math.PI / 180); // Simple conversion from latitude to meters
+
+            return { x, z, lat: targetLat, lng: targetLng }; // Returning lat/lng for distance calculation too
+        }
+
+        // Helper function to calculate distance using Haversine formula
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371e3; // Earth radius in meters
+            const φ1 = lat1 * Math.PI/180;
+            const φ2 = lat2 * Math.PI/180;
+            const Δφ = (lat2-lat1) * Math.PI/180;
+            const Δλ = (lon2-lon1) * Math.PI/180;
+
+            const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                      Math.cos(φ1) * Math.cos(φ2) *
+                      Math.sin(Δλ/2) * Math.sin(Δλ/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+            return R * c; // Distance in meters
+        }
+
+        // Helper function to calculate the bearing (angle) between two lat/lon points
+        function calculateBearing(lat1, lon1, lat2, lon2) {
+            const φ1 = lat1 * Math.PI / 180;
+            const φ2 = lat2 * Math.PI / 180;
+            const λ1 = lon1 * Math.PI / 180;
+            const λ2 = lon2 * Math.PI / 180;
+
+            const y = Math.sin(λ2 - λ1) * Math.cos(φ2);
+            const x = Math.cos(φ1) * Math.sin(φ2) - 
+                      Math.sin(φ1) * Math.cos(φ2) * Math.cos(λ2 - λ1);
+            const θ = Math.atan2(y, x);
+
+            const bearing = (θ * 180 / Math.PI + 360) % 360; // Convert bearing from radians to degrees
+            return bearing; // Bearing in degrees (0° is North, 90° is East, etc.)
+        }
+    </script>
+</body>
+</html>
